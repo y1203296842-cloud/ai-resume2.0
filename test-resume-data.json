@@ -1,0 +1,109 @@
+{
+  "resumeData": {
+    "personalInfo": {
+      "name": "张三",
+      "gender": "男",
+      "ethnicity": "汉族",
+      "politicalStatus": "共青团员",
+      "hometown": "浙江杭州",
+      "school": "浙江大学",
+      "major": "计算机科学与技术",
+      "degree": "本科",
+      "englishScore": "CET-6 580",
+      "age": "24",
+      "phone": "13800138000",
+      "email": "zhangsan@example.com",
+      "currentStatus": "前端开发工程师"
+    },
+    "education": [
+      {
+        "school": "浙江大学",
+        "major": "计算机科学与技术",
+        "degree": "本科",
+        "startDate": "2019.09",
+        "endDate": "2023.06",
+        "gpa": "3.8/4.0",
+        "description": "主修课程：数据结构、算法设计、操作系统、计算机网络、数据库原理、软件工程"
+      }
+    ],
+    "experience": [
+      {
+        "company": "字节跳动",
+        "position": "前端开发工程师",
+        "startDate": "2023.07",
+        "endDate": "至今",
+        "description": [
+          "负责抖音电商商家中心的前端架构设计与开发，使用 React + TypeScript 技术栈",
+          "主导性能优化项目，通过代码分割、懒加载、虚拟列表等技术将页面首屏加载时间从 3.2s 降低至 1.1s",
+          "设计并实现了基于 Micro App 的微前端架构，支持 5 个子应用的独立部署与集成",
+          "建立前端监控体系，接入 Sentry 和自定义性能埋点，线上错误率降低 60%"
+        ]
+      },
+      {
+        "company": "阿里巴巴",
+        "position": "前端开发实习生",
+        "startDate": "2022.06",
+        "endDate": "2022.09",
+        "description": [
+          "参与淘宝双 11 营销活动页面开发，使用 React + Next.js 实现 SSR 渲染",
+          "负责组件库维护，封装 15+ 通用业务组件，被 3 个业务团队复用",
+          "优化 Webpack 构建配置，将构建时间从 120s 缩短至 45s"
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "name": "智能简历生成系统",
+        "role": "全栈开发",
+        "techStack": "React, Next.js, TypeScript, Tailwind CSS, Node.js",
+        "description": [
+          "设计并实现基于 AI 的简历生成系统，支持多模板切换、实时预览、PDF/Word 导出",
+          "采用 Template Plugin 架构，新增模板只需注册无需修改核心代码，已支持 5 种模板",
+          "实现统一 Layout Contract，确保 Preview、PDF、Word 三端视觉一致性",
+          "接入 DeepSeek API 进行智能内容优化，支持流式输出和上下文管理"
+        ]
+      },
+      {
+        "name": "电商数据可视化平台",
+        "role": "前端负责人",
+        "techStack": "Vue 3, ECharts, D3.js, WebSocket",
+        "description": [
+          "构建实时数据大屏，支持每秒 1000+ 数据点的流畅渲染",
+          "使用 Canvas + WebGL 混合渲染方案，相比纯 SVG 方案性能提升 5 倍",
+          "设计拖拽式图表编辑器，支持 20+ 图表类型和自定义组合"
+        ]
+      },
+      {
+        "name": "企业级权限管理系统",
+        "role": "前端开发",
+        "techStack": "React, Ant Design Pro, UmiJS",
+        "description": [
+          "实现基于 RBAC 的细粒度权限控制，支持按钮级权限和动态路由",
+          "开发组织架构树组件，支持 10000+ 节点的虚拟滚动和拖拽排序"
+        ]
+      }
+    ],
+    "skills": [
+      "JavaScript/TypeScript",
+      "React/Next.js",
+      "Vue 3",
+      "Node.js/Express",
+      "HTML5/CSS3/Tailwind",
+      "Webpack/Vite",
+      "Git/CI/CD",
+      "Python"
+    ],
+    "certificates": [
+      "软件设计师中级资格",
+      "AWS Certified Developer",
+      "全国计算机等级二级C语言"
+    ],
+    "languages": [
+      "英语 CET-6 580",
+      "普通话二级甲等"
+    ],
+    "evaluation": "具有3年前端开发经验，熟悉 React/Vue 技术栈，具备全栈开发能力。擅长性能优化和架构设计，有微前端和组件库建设经验。注重代码质量和团队协作，具有良好的沟通能力和学习能力。"
+  },
+  "format": "docx",
+  "templateId": "wenneker"
+}

@@ -1,0 +1,1067 @@
+现在对甘霖 AI Resume Agent 进行一次“最小范围、可迁移”的故障修复。
+
+这次任务有非常明确的边界：
+
+**不要修改 Prompt。**
+**不要修改现有简历生成逻辑的业务规则。**
+**不要修改知识库逻辑。**
+**不要修改现有动画的视觉设计和交互逻辑。**
+**不要重新设计产品流程。**
+**不要大规模重构项目。**
+
+当前重点是修复最近一次“用户确认生成后直接进入生成动画”改动后出现的两个问题：
+
+1. 昨天发现：简历 JSON 在流式输出过程中被截断。
+2. 今天发现：部署到平台后，用户点击“开始对话”后页面一直转圈，无法正常进入对话。
+
+必须把这两个问题作为一个完整的“流式生成链路故障”进行排查。
+
+---
+
+# 一、先明确产品要求：生成动画逻辑必须保留
+
+当前正确的产品流程已经确定：
+
+用户完成信息填写
+↓
+Agent 收集并确认信息
+↓
+用户明确同意生成
+↓
+**立即进入现有生成动画**
+↓
+**动画显示期间，后台执行简历生成**
+↓
+模型生成标准简历 JSON
+↓
+后端完整接收并解析 JSON
+↓
+保存/传递完整简历数据
+↓
+动画结束
+↓
+进入简历结果页 / 编辑页
+
+重点：
+
+**用户确认生成以后，不应该再先在对话框里等待模型慢慢输出一大段 JSON，然后再显示动画。**
+
+用户看到的是动画。
+
+模型生成、JSON 接收、解析、校验等工作应该在动画后台完成。
+
+因此：
+
+* 不允许恢复成“对话框等待 JSON → JSON 完成 → 再播放动画”
+* 不允许取消现有动画
+* 不允许把 JSON 内容显示给用户
+* 不允许让用户在对话框中等待简历生成
+* 不允许为了修复问题而改变动画的视觉和交互逻辑
+
+本次只修复动画背后的数据生成链路。
+
+---
+
+# 二、昨天发现的核心故障
+
+昨天发现：
+
+模型输出简历 JSON 时，流式响应出现异常。
+
+已知现象：
+
+* fullText 最终只有约 1874 字符
+* JSON 输出到“教育背景”的第一个字段附近就停止
+* 后面的工作经历、项目经历、技能等内容没有继续进入 fullText
+* 最终 JSON 不完整
+* JSON.parse 无法得到完整结构
+* sections 最终为空
+
+这个问题不能简单理解为“JSON 太长”。
+
+必须排查：
+
+1. LLM stream 是否提前结束
+2. SDK stream 是否提前结束
+3. stream reader 是否提前退出
+4. 是否错误调用了 abort
+5. 是否存在 timeout
+6. 是否存在异常 Promise
+7. 是否因为动画组件卸载/切换导致请求被取消
+8. 是否因为前端状态切换导致 stream reader 被销毁
+9. 是否因为 API response 被提前关闭
+10. 是否因为最近动画逻辑把生成请求移动到了新的生命周期中
+11. 是否因为生成请求和动画状态存在错误的依赖关系
+12. 是否因为普通聊天流和简历 JSON 流被错误地共用解析逻辑
+13. 是否因为 JSON 流被前端逐 token/逐 chunk 处理时发生截断
+14. 是否因为请求在页面状态切换后失去引用
+15. 是否因为 AbortController 在动画开始/结束时被错误触发
+16. 是否因为 React component unmount 导致请求取消
+17. 是否因为 API route 的 response 生命周期与前端动画生命周期绑定
+
+尤其检查：
+
+**最近“用户确认生成后直接进入动画”的代码修改。**
+
+重点确认是否出现了这样的错误：
+
+用户点击生成
+→ 设置 loading / animation
+→ 发起生成请求
+→ 页面状态切换
+→ 原组件卸载
+→ 请求被取消
+→ stream 截断
+
+如果存在这种情况，必须解除：
+
+**UI 动画生命周期 ≠ 简历生成请求生命周期**
+
+动画可以播放，但后台生成请求必须独立、稳定地完成。
+
+---
+
+# 三、今天出现的新故障
+
+今天部署到平台后：
+
+用户打开网站
+↓
+点击“开始对话”
+↓
+页面一直转圈
+↓
+无法正常进入对话
+
+今天确认不是额度耗尽。
+
+因此不能直接把问题归因于：
+
+* API 额度
+* Token 不够
+* 模型不可用
+
+必须实际定位。
+
+重点排查：
+
+## 1. 前端
+
+检查“开始对话”按钮：
+
+* click handler
+* loading state
+* request
+* fetch
+* stream reader
+* error handler
+* finally
+* AbortController
+
+确认是否存在：
+
+```text
+loading = true
+```
+
+之后由于请求异常，没有任何路径执行：
+
+```text
+loading = false
+```
+
+导致页面永久转圈。
+
+---
+
+## 2. API
+
+检查：
+
+/api/chat
+
+或者项目中实际承担聊天请求的 API。
+
+确认：
+
+* 请求是否到达 API
+* API 是否正常执行
+* 是否成功初始化 LLM
+* 是否成功建立 stream
+* 是否返回 HTTP response
+* 是否出现 pending request
+* 是否出现异常后没有返回
+* 是否 response 没有结束
+
+---
+
+## 3. LLM
+
+确认：
+
+* LLM client 是否初始化成功
+* model 是否正确
+* API key / provider 配置是否正常
+* stream 是否成功创建
+* 是否收到第一个 chunk
+* 是否在中途停止
+* 是否抛异常
+
+如果 LLM 根本没有返回，则继续向上游排查。
+
+---
+
+## 4. Stream
+
+重点检查昨天修改的流式代码。
+
+必须确认：
+
+普通聊天 stream 与简历 JSON stream 是否被错误地混合处理。
+
+正确逻辑应该是：
+
+```text
+普通聊天：
+LLM stream
+→ 前端正常显示聊天内容
+
+简历生成：
+LLM stream
+→ 后台完整累积 fullText
+→ stream 正常结束
+→ 对完整 fullText 做 JSON.parse
+→ 校验 JSON
+→ 保存简历
+→ 通知前端生成完成
+→ 动画结束
+→ 进入结果页
+```
+
+而不是：
+
+```text
+LLM stream
+→ 每个 chunk 都尝试 JSON.parse
+```
+
+也不是：
+
+```text
+LLM stream
+→ 前端为了播放动画而不断修改/销毁 stream
+```
+
+更不能：
+
+```text
+LLM stream
+→ 一旦发现暂时无法 JSON.parse
+→ 认为生成失败
+→ 直接结束 stream
+```
+
+---
+
+# 四、最重要的修复方案
+
+请按照下面的架构修复。
+
+## A. 动画和生成请求彻底解耦
+
+动画只是 UI。
+
+生成请求是后台任务。
+
+两者不能互相控制生命周期。
+
+正确结构：
+
+```text
+用户确认生成
+        ↓
+前端立即进入现有动画
+        ↓
+启动简历生成任务
+        ↓
+后台持续接收 LLM stream
+        ↓
+完整累积 fullText
+        ↓
+LLM stream 正常结束
+        ↓
+解析完整 JSON
+        ↓
+校验 JSON
+        ↓
+保存简历数据
+        ↓
+返回 generation success
+        ↓
+前端结束动画
+        ↓
+进入结果页
+```
+
+动画期间：
+
+* 不显示 JSON
+* 不依赖 JSON chunk
+* 不因为 JSON 暂时不完整而结束动画
+* 不因为动画结束而取消生成请求
+* 不因为组件视觉状态改变而取消生成请求
+
+---
+
+# 五、JSON 必须“完整接收后再解析”
+
+这是本次修复的硬要求。
+
+绝对不要：
+
+```text
+收到 chunk
+↓
+JSON.parse(chunk)
+```
+
+也不要：
+
+```text
+收到 chunk
+↓
+JSON.parse(fullText)
+↓
+失败
+↓
+结束
+```
+
+正确方式：
+
+```text
+chunk 1
+↓
+chunk 2
+↓
+chunk 3
+↓
+...
+↓
+chunk N
+↓
+stream 正常结束
+↓
+fullText = 完整模型输出
+↓
+清理可能存在的 markdown/json fence
+↓
+JSON.parse(fullText)
+↓
+schema validation
+↓
+成功
+```
+
+也就是说：
+
+**JSON.parse 是 stream 完成之后的事情。**
+
+---
+
+# 六、必须增加完整性检查
+
+不能再出现：
+
+```text
+JSON.parse失败
+→ sections = []
+→ 当成正常结果返回
+```
+
+这是错误的。
+
+如果 JSON 不完整：
+
+必须明确进入：
+
+```text
+generation_failed
+```
+
+或者项目现有对应错误状态。
+
+必须保留：
+
+* 原始 fullText
+* 错误原因
+* 请求 ID / generation ID（如果项目已有）
+* 错误日志
+
+方便定位。
+
+不能静默把 sections 变成空数组。
+
+---
+
+# 七、不能因为 JSON 解析失败而误伤普通对话
+
+必须明确区分：
+
+### 普通聊天
+
+```text
+chat stream
+→ 正常返回文本
+```
+
+### 简历生成
+
+```text
+resume generation stream
+→ 后台累积 fullText
+→ stream结束
+→ JSON.parse
+→ schema validation
+```
+
+两套处理逻辑不能互相污染。
+
+如果现在 `/api/chat` 同时负责两种模式，可以继续共用 API，但内部必须根据明确的请求模式区分：
+
+```text
+mode = chat
+```
+
+和：
+
+```text
+mode = resume_generation
+```
+
+不要把整个 `/api/chat` 改成“永远返回 JSON”。
+
+---
+
+# 八、解决今天无限转圈
+
+所有请求都必须具备完整生命周期：
+
+```text
+idle
+↓
+loading
+↓
+success / error / timeout
+↓
+finally
+↓
+loading = false
+```
+
+无论发生：
+
+* API 错误
+* LLM 错误
+* stream 错误
+* JSON 错误
+* timeout
+* 网络错误
+
+都不能永久 loading。
+
+前端必须保证：
+
+```text
+try {
+    ...
+} catch (error) {
+    ...
+} finally {
+    ...
+}
+```
+
+或者采用项目现有等价机制。
+
+如果请求失败：
+
+动画/加载状态必须能够退出。
+
+不能让用户永久转圈。
+
+---
+
+# 九、特别检查 AbortController
+
+这是本次重点排查对象。
+
+搜索项目中所有：
+
+```text
+AbortController
+abort()
+signal
+```
+
+确认：
+
+* 是否在页面切换时调用 abort
+* 是否在动画开始时调用 abort
+* 是否在动画结束时调用 abort
+* 是否在 loading 状态改变时调用 abort
+* 是否因为 useEffect cleanup 调用 abort
+* 是否因为组件 unmount 调用 abort
+
+如果发现：
+
+```text
+useEffect(() => {
+    return () => controller.abort()
+})
+```
+
+而这个 controller 控制的是简历后台生成请求，
+
+必须重新设计其生命周期。
+
+原则：
+
+**UI 组件卸载不能自动取消已经确认启动的简历生成任务。**
+
+---
+
+# 十、生成任务需要独立于动画组件
+
+如果当前代码结构导致：
+
+```text
+AnimationComponent
+    ↓
+useEffect
+    ↓
+fetch('/api/chat')
+```
+
+那么需要调整为：
+
+```text
+GenerationTask / generation request
+        ↓
+独立执行
+        ↓
+Animation UI
+        ↓
+只订阅 generation 状态
+```
+
+不要让：
+
+```text
+AnimationComponent unmount
+```
+
+导致：
+
+```text
+Generation request abort
+```
+
+---
+
+# 十一、不要为了“流式 JSON”让前端参与解析
+
+如果当前前端正在：
+
+```text
+fetch
+→ reader.read()
+→ fullText
+→ JSON.parse
+```
+
+而且这个逻辑和动画组件绑定，
+
+优先考虑把：
+
+**完整 JSON 累积与解析放在后端。**
+
+推荐：
+
+```text
+Frontend
+↓
+POST /api/resume/generate
+↓
+Backend
+↓
+LLM stream
+↓
+fullText
+↓
+JSON.parse
+↓
+schema validation
+↓
+保存/返回 generation result
+↓
+Frontend
+↓
+结束动画
+↓
+进入结果页
+```
+
+这样最稳定，也最方便未来迁移。
+
+---
+
+# 十二、迁移性要求
+
+本次修改必须保持未来独立部署能力。
+
+不要把修复方案绑定到：
+
+* Coze 专有组件
+* Coze 专有状态
+* Coze 专有 API
+* Coze 专有动画接口
+* 某个具体 LLM provider
+* 某个具体模型
+
+保持现在已有的 LLM abstraction。
+
+如果项目已经存在：
+
+```text
+src/config/
+src/lib/llm.ts
+```
+
+或者类似的 LLM 抽象层：
+
+**继续使用，不要绕过。**
+
+未来迁移时应该只需要替换：
+
+```text
+createLLMStream()
+```
+
+或者现有 provider adapter。
+
+业务层不要直接写死：
+
+```text
+Coze API
+```
+
+---
+
+# 十三、推荐的模块边界
+
+不要大规模重构，只需要确保职责清晰。
+
+推荐保持类似：
+
+```text
+src/
+├── app/
+│   ├── api/
+│   │   ├── chat/
+│   │   └── resume/
+│   │
+│   └── ...
+│
+├── lib/
+│   ├── llm.ts
+│   ├── resume-generator.ts
+│   ├── resume-parser.ts
+│   ├── resume-validator.ts
+│   └── ...
+│
+├── components/
+│   └── generation-animation/
+│
+└── config/
+    └── ...
+```
+
+但注意：
+
+**如果现有项目已经有对应模块，不要为了符合这个目录示例而重构。**
+
+优先修改现有代码。
+
+---
+
+# 十四、必须保留现有 Prompt
+
+本次：
+
+**严禁修改 Prompt。**
+
+包括：
+
+* system prompt
+* prompts.ts
+* 岗位知识库调用规则
+* optimize/apply/explore 模式
+* 简历 JSON schema 的业务要求
+
+全部保持现状。
+
+如果发现问题与 Prompt 无关，不得通过修改 Prompt 规避代码问题。
+
+---
+
+# 十五、必须保留现有动画
+
+现有动画已经是确定的产品交互。
+
+本次不能：
+
+* 删除动画
+* 简化动画
+* 替换动画
+* 改动画文案
+* 改动画步骤
+* 改动画视觉
+* 改动画时长逻辑
+* 恢复成“对话框等待 → 再动画”的旧流程
+
+只修改：
+
+**动画背后的生成任务状态和数据通信。**
+
+---
+
+# 十六、错误处理必须完整
+
+至少覆盖：
+
+### 1. LLM 请求失败
+
+```text
+generation_failed
+```
+
+前端退出 loading/animation，并给用户正常错误提示。
+
+### 2. stream 中断
+
+记录：
+
+```text
+stream_interrupted
+```
+
+保留 fullText，方便排查。
+
+不能把不完整 JSON 当成成功。
+
+### 3. JSON parse 失败
+
+记录：
+
+```text
+invalid_json
+```
+
+保留原始 fullText。
+
+### 4. Schema validation 失败
+
+记录：
+
+```text
+invalid_resume_schema
+```
+
+不能直接生成空 sections。
+
+### 5. 超时
+
+记录：
+
+```text
+generation_timeout
+```
+
+前端结束 loading。
+
+### 6. 前端请求异常
+
+必须进入 error/finally。
+
+不能永久转圈。
+
+---
+
+# 十七、必须增加调试日志
+
+不要输出用户敏感简历全文到生产日志。
+
+可以记录：
+
+```text
+generation_started
+generation_stream_started
+generation_first_chunk
+generation_stream_completed
+generation_stream_interrupted
+generation_fulltext_length
+generation_json_parse_success
+generation_json_parse_failed
+generation_schema_validation_success
+generation_schema_validation_failed
+generation_completed
+generation_failed
+```
+
+建议记录：
+
+* generationId
+* mode
+* targetPosition
+* stream开始时间
+* first chunk时间
+* stream结束时间
+* fullText长度
+* JSON解析结果
+* 错误类型
+
+不要记录完整简历内容。
+
+这样下一次如果又出现：
+
+```text
+fullText = 1874
+```
+
+就能知道到底是：
+
+```text
+LLM只返回了1874
+```
+
+还是：
+
+```text
+LLM返回更多，但客户端只读取了1874
+```
+
+这是两个完全不同的问题。
+
+---
+
+# 十八、必须重点验证“1874字符到底在哪里断”
+
+修复后必须测试。
+
+不要只测试“能不能生成”。
+
+至少做以下测试：
+
+### Test 1：普通对话
+
+```text
+开始对话
+→ 正常返回
+→ 不转圈
+```
+
+### Test 2：确认生成
+
+```text
+用户确认生成
+→ 立即出现现有动画
+→ 对话框不等待 JSON
+```
+
+### Test 3：完整 JSON
+
+生成一份包含：
+
+* personalInfo
+* education
+* experience
+* projects
+* skills
+* certificates
+* sections
+
+的完整简历。
+
+确认：
+
+```text
+fullText 完整
+JSON.parse 成功
+sections 不为空
+```
+
+### Test 4：长简历
+
+测试明显超过昨天 1874 字符的 JSON。
+
+确认不会固定在某个长度截断。
+
+### Test 5：stream 中断
+
+模拟 stream 中断。
+
+确认：
+
+```text
+不能生成空简历
+不能 sections = []
+不能永久 loading
+```
+
+### Test 6：JSON 格式错误
+
+模拟 invalid JSON。
+
+确认：
+
+```text
+generation_failed
+```
+
+而不是：
+
+```text
+成功但 sections=[]
+```
+
+### Test 7：动画生命周期
+
+确认：
+
+```text
+动画播放
++
+后台生成
+```
+
+互不取消。
+
+### Test 8：刷新/组件状态变化
+
+如果当前架构支持，确认动画组件状态变化不会直接 abort 已经启动的生成请求。
+
+---
+
+# 十九、验收标准
+
+只有同时满足以下条件，才算修复完成：
+
+1. Prompt 不变
+2. 知识库逻辑不变
+3. 现有动画视觉和交互不变
+4. 用户确认生成后立即进入动画
+5. 动画期间后台生成简历
+6. 对话框不再承担等待完整 JSON 的职责
+7. 简历 JSON 在 stream 完成后再解析
+8. JSON 不完整时不能生成空 sections
+9. fullText 不再出现无合理原因的提前截断
+10. 普通对话不会被 JSON 解析逻辑影响
+11. 开始对话不会因为异常而永久转圈
+12. API、LLM、stream、JSON parse、schema validation 都有明确错误路径
+13. UI 动画生命周期与后台生成任务生命周期解耦
+14. 不绑定 Coze 专有实现
+15. 保留现有 LLM abstraction
+16. 不进行大规模重构
+17. 代码修改完成后必须实际测试
+18. 测试必须覆盖普通对话、生成动画、长 JSON、stream 中断、JSON parse 失败、API 异常
+
+---
+
+# 二十、最终向我汇报
+
+修改完成后不要只告诉我“已修复”。
+
+必须明确告诉我：
+
+### 1. 根因
+
+昨天 JSON 截断的真正原因是什么？
+
+### 2. 今天无限转圈的真正原因是什么？
+
+如果是同一个根因，要明确说明证据。
+
+如果是两个不同问题，也要分别说明。
+
+### 3. 修改文件
+
+逐个列出：
+
+```text
+文件路径
+修改内容
+修改原因
+```
+
+### 4. 动画
+
+明确确认：
+
+```text
+现有动画逻辑未修改
+```
+
+### 5. Prompt
+
+明确确认：
+
+```text
+Prompt 未修改
+```
+
+### 6. 迁移性
+
+说明未来脱离 Coze 后，哪些代码仍然可以直接复用，LLM provider 是否仍然保持抽象。
+
+### 7. 测试结果
+
+逐项报告：
+
+* 普通对话
+* 开始生成
+* 动画
+* 完整 JSON
+* 长 JSON
+* stream 中断
+* JSON parse failure
+* API failure
+* loading 状态
+
+每项说明实际测试结果。
+
+**如果某项没有实际测试，不要声称测试通过。**
+
+再次强调：
+
+这不是让你重新设计甘霖 AI。
+
+这是一次针对最近代码修改导致的：
+
+**“生成动画 + 后台简历 JSON 流”链路故障**
+
+的精准修复。
+
+优先采用最小改动。
+
+不要修改 Prompt。
+
+不要修改动画。
+
+不要删除现有功能。
+
+不要大规模重构。
+
+目标是：
+
+**用户点击生成后立即看到现有动画，同时后台可靠完成完整简历 JSON 的生成、接收、解析、校验和交付。**
