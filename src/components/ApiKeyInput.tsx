@@ -11,8 +11,6 @@ import {
 import { BRAND_NAME } from '@/config/system';
 import { GuideModal } from '@/components/GuideModal';
 
-const GUIDE_SHOWN_KEY = 'guohe_guide_shown';
-
 interface ApiKeyInputProps {
   onEnter?: () => void;
 }
@@ -43,25 +41,14 @@ export function ApiKeyInput({ onEnter }: ApiKeyInputProps) {
     }
   }, []);
 
-  // 首次进入时弹出必读提示
+  // 每次进入 API 设置页都弹出必读提示
   useEffect(() => {
     if (!mounted) return;
-    try {
-      if (!localStorage.getItem(GUIDE_SHOWN_KEY)) {
-        setGuideOpen(true);
-      }
-    } catch {
-      // ignore
-    }
+    setGuideOpen(true);
   }, [mounted]);
 
   const handleGuideClose = () => {
     setGuideOpen(false);
-    try {
-      localStorage.setItem(GUIDE_SHOWN_KEY, '1');
-    } catch {
-      // ignore
-    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -249,8 +236,8 @@ export function ApiKeyInput({ onEnter }: ApiKeyInputProps) {
         </div>
       </div>
 
-      {/* 必读提示弹窗（首次显示） */}
-      <GuideModal open={guideOpen} onClose={handleGuideClose} />
+      {/* 必读提示弹窗（每次显示，无强制等待） */}
+      <GuideModal open={guideOpen} onClose={handleGuideClose} skipMinDisplay />
     </div>
   );
 }
