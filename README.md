@@ -1,3 +1,9 @@
+<div align="center">
+
+![果核AI 横幅：让每个人都有面试机会](./docs/hero-banner.png)
+
+</div>
+
 # 果核AI（开源版）
 
 > 作者：抖音「杨枝甘霖」
