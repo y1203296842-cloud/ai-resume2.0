@@ -110,18 +110,22 @@ export default function LandingPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 pt-6 sm:pt-8 pb-8">
-        {/* Hero Banner */}
-        <div className="w-full max-w-5xl mx-auto mb-10 animate-fade-in">
-          <img
-            src="/hero-banner.png"
-            alt="让每个人都有面试机会 —— 像懂行的 HR 一样跟你聊，把经历改成目标岗位想看的样子"
-            className="w-full h-auto rounded-2xl shadow-sm border border-[#e5e5e7]"
-            loading="eager"
-          />
-        </div>
-
+      <main className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 pt-6 sm:pt-14 pb-8">
         <div className="max-w-4xl w-full text-center">
+          {/* Slogan */}
+          <h1
+            className="text-[clamp(2.2rem,5.5vw,3.8rem)] font-[200] leading-[1.15] tracking-tight text-[#1d1d1f] mb-10 animate-fade-in"
+          >
+            让每个人都有面试机会
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-[17px] leading-relaxed text-[#86868b] max-w-lg mx-auto mb-14 animate-fade-in" style={{ animationDelay: '0.15s' }}>
+            不知道适合什么岗位？不知道简历怎么写？
+            <br />
+            已经写好简历但总拿不到面试？交给{BRAND_NAME}。
+          </p>
+
           {/* Mode Cards */}
           <div className="stagger-children grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-7 max-w-4xl mx-auto mb-12">
             {modes.map((mode) => (
