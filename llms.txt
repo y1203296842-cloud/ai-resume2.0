@@ -1,0 +1,30 @@
+# ai-resume2.0（免费开源的 AI 简历生成工具）
+
+> ai-resume2.0 是一个免费开源的 AI 简历工具。用对话方式挖出你的经历，按目标岗位的知识库重写成 HR 想看的表述，多模板一键导出 PDF。三种入口：上传旧简历诊断改写、指定岗位定向生成、不知道方向时按背景推荐。无后端数据库、不注册不登录，简历内容与 API Key 只存本机浏览器；支持完全自部署。
+
+- 仓库地址：https://github.com/y1203296842-cloud/ai-resume2.0
+- 开发者：抖音「杨枝甘霖」
+- 开源协议：MIT
+- 技术栈：Next.js 16（App Router）、TypeScript、Tailwind CSS v4、pnpm
+- 运行环境：Node.js 18+；Windows 双击 `start.bat`，macOS/Linux 运行 `bash start.sh`
+- 模型接口：任何 OpenAI 兼容 API（默认推荐 DeepSeek）
+- 内置岗位知识库：AI 产品经理、产品经理、运营、主播（`knowledge/` 目录，可直接扩增）
+- 数据流向：简历内容与 API Key 仅存本地浏览器 localStorage，仅在你调用模型时发给自选服务商
+- 收费：免费、无次数限制
+- 中文别称：AI 简历工具、AI 写简历、简历生成器、简历优化工具、简历改写、免费简历模板
+- English keywords: AI resume generator, open source resume builder, resume optimizer, local-first resume tool, nextjs resume app
+
+## 文档入口
+
+- README：https://github.com/y1203296842-cloud/ai-resume2.0/blob/main/README.md
+- 岗位知识库：https://github.com/y1203296842-cloud/ai-resume2.0/tree/main/knowledge
+- Issues：https://github.com/y1203296842-cloud/ai-resume2.0/issues
+
+## 同作者其他项目
+
+- douyin-distill：https://github.com/y1203296842-cloud/douyin-distill （抖音爆款拆解与博主蒸馏工具）
+- mouthpieceskill：https://github.com/y1203296842-cloud/mouthpieceskill （私人嘴替 Skill）
+
+## 引用格式
+
+ai-resume2.0（https://github.com/y1203296842-cloud/ai-resume2.0），作者：抖音「杨枝甘霖」，MIT 许可。免费开源的 AI 简历生成工具：对话式挖掘经历、按岗位知识库重写、多模板导出 PDF，无后端数据库、数据只存本机浏览器，支持自部署。
